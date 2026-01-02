@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ethereal Flow - Cinematic Study</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Post-processing Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <!-- FXAA Shader for Anti-Aliasing -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/FXAAShader.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a0505; font-family: 'Inter', sans-serif; }
+        canvas { display: block; }
+        #overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.3) 100%);
+            z-index: 5;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 3rem; left: 3rem;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .cinematic-badge {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(30px);
+            border-left: 3px solid #d4af37;
+            padding: 1rem 2rem;
+            border-radius: 2px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        /* Instructions Modal */
+        #instructions-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            display: none; /* Hidden by default */
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        #instructions-modal.active {
+            display: flex;
+            opacity: 1;
+        }
+        .modal-content {
+            max-width: 600px;
+            width: 90%;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-left: 4px solid #d4af37;
+            padding: 3rem;
+            color: #e0e0e0;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.8);
+            transform: translateY(20px);
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        #instructions-modal.active .modal-content {
+            transform: translateY(0);
+        }
+        .modal-title {
+            font-size: 1.8rem;
+            font-weight: 200;
+            letter-spacing: 0.1em;
+            color: #d4af37;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+        }
+        .modal-text {
+            line-height: 1.8;
+            font-size: 1.1rem;
+            color: #a0a0a0;
+            margin-bottom: 1rem;
+        }
+        .close-btn {
+            margin-top: 2rem;
+            background: transparent;
+            border: 1px solid #555;
+            color: #fff;
+            padding: 0.8rem 2rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: all 0.3s;
+        }
+        .close-btn:hover {
+            border-color: #d4af37;
+            color: #d4af37;
+        }
+    </style>
+</head>
+<body>
+
+<div id="overlay"></div>
+
+<div id="ui-layer">
+    <div class="cinematic-badge">
+        <h1 class="text-white text-xl font-extralight tracking-[0.2em] uppercase mt-1">Ethereal Pomodoro</h1>
+    </div>
+</div>
+
+<!-- Instructions Modal -->
+<div id="instructions-modal">
+    <div class="modal-content">
+        <h2 class="modal-title">The Pomodoro Technique</h2>
+        <p class="modal-text">
+            Developed by Francesco Cirillo in the late 1980s, this technique uses a timer to break work into intervals, traditionally 25 minutes in length, separated by short breaks.
+        </p>
+        <div class="border-t border-gray-800 my-6"></div>
+        <h3 class="text-white uppercase tracking-widest text-sm mb-4">How to Use</h3>
+        <ul class="modal-text list-disc pl-5 space-y-2">
+            <li><strong class="text-amber-500">WORK:</strong> Focus on a single task for 25 minutes.</li>
+            <li><strong class="text-amber-500">BREAK:</strong> Take a 5-minute break to recharge.</li>
+            <li><strong class="text-amber-500">CONTROLS:</strong> Tap the screen buttons to Start, Reset, or Toggle Modes.</li>
+        </ul>
+        <button class="close-btn" onclick="toggleInstructions()">Close Guide</button>
+    </div>
+</div>
+
+<script>
+/**
+ * ULTRA-CINEMATIC ROYAL STUDY - REFINED V9.4
+ * - UI Update: Added Instructions Modal and INFO button on clock face.
+ * - Interaction: Raycasting updated to detect top-right info button.
+ */
+
+let scene, camera, renderer, composer, raycaster, mouse, cubeCamera, cubeRenderTarget;
+let hourglass, table, clock, screenMesh, dust;
+let topSand, bottomSand, streamMesh;
+let sandMaterial;
+let screenTexture, screenContext; // For 2D drawing
+let fxaaPass; 
+
+let timerMs = 25 * 60 * 1000;
+let totalTimeMs = 25 * 60 * 1000;
+let isRunning = false;
+let isFlipping = false; 
+let lastTimestamp = 0;
+let mode = 'work';
+let sessionCount = 1;
+
+// Animation State
+let prevSeconds = 0;
+let digitOffset = 0; // For sliding animation 0 -> 1
+
+const COLORS = {
+    sand: 0xc2b2a3, 
+    brass: 0xb09b75, 
+    mahogany: 0x1f1a18, 
+    vfdDigits: '#ffaa00',
+    wallpaperBase: '#241a1a', 
+    wallpaperPattern: '#5c4d3c',
+    screenBg: '#080500',
+    screenText: '#e6b87e',
+    screenDim: '#5c4529'
+};
+
+function toggleInstructions() {
+    const modal = document.getElementById('instructions-modal');
+    if (modal.classList.contains('active')) {
+        modal.classList.remove('active');
+        setTimeout(() => { modal.style.display = 'none'; }, 400); // Wait for fade out
+    } else {
+        modal.style.display = 'flex';
+        // Small delay to allow display:flex to apply before adding opacity class for transition
+        setTimeout(() => { modal.classList.add('active'); }, 10);
+    }
+}
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a0505);
+    scene.fog = new THREE.Fog(0x1a0505, 12, 45);
+    
+    camera = new THREE.PerspectiveCamera(32, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 5, 16);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1; 
+    document.body.appendChild(renderer.domElement);
+
+    const renderScene = new THREE.RenderPass(scene, camera);
+    
+    const resolution = new THREE.Vector2(
+        window.innerWidth * renderer.getPixelRatio(), 
+        window.innerHeight * renderer.getPixelRatio()
+    );
+
+    const bloomPass = new THREE.UnrealBloomPass(
+        resolution,
+        0.5,
+        0.5,
+        1.05
+    );
+
+    composer = new THREE.EffectComposer(renderer);
+    composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    composer.addPass(renderScene);
+    composer.addPass(bloomPass);
+
+    fxaaPass = new THREE.ShaderPass(THREE.FXAAShader);
+    const pixelRatio = renderer.getPixelRatio();
+    fxaaPass.material.uniforms['resolution'].value.x = 1 / (window.innerWidth * pixelRatio);
+    fxaaPass.material.uniforms['resolution'].value.y = 1 / (window.innerHeight * pixelRatio);
+    composer.addPass(fxaaPass);
+
+    cubeRenderTarget = new THREE.WebGLCubeRenderTarget(512, { 
+        format: THREE.RGBFormat, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter 
+    });
+    cubeCamera = new THREE.CubeCamera(0.1, 1000, cubeRenderTarget);
+    scene.add(cubeCamera);
+
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x2e2525, 0.6);
+    scene.add(hemi);
+
+    const windowLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    windowLight.position.set(-30, 15, 10);
+    windowLight.castShadow = true;
+    windowLight.shadow.mapSize.width = 2048; 
+    windowLight.shadow.mapSize.height = 2048;
+    windowLight.shadow.bias = -0.0001;
+    windowLight.shadow.radius = 4; 
+    scene.add(windowLight);
+
+    const wallWash = new THREE.SpotLight(0xffe0cc, 5.0); 
+    wallWash.position.set(0, 15, 6);
+    wallWash.angle = Math.PI / 3.2;
+    wallWash.penumbra = 0.5; 
+    wallWash.decay = 1.5;
+    wallWash.distance = 35;
+    const wallTarget = new THREE.Object3D();
+    wallTarget.position.set(0, 4, -10);
+    scene.add(wallTarget);
+    wallWash.target = wallTarget;
+    scene.add(wallWash);
+
+    createSandTextureMaterial();
+    createTable();
+    createHourglass();
+    createSmartClock(); 
+    createDustMotes();
+    createDetailedWall();
+
+    window.addEventListener('resize', onWindowResize);
+    window.addEventListener('mousedown', onMouseDown);
+    requestAnimationFrame(animate);
+}
+
+function createDetailedWall() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.fillStyle = COLORS.wallpaperBase; ctx.fillRect(0,0,1024,1024);
+    ctx.strokeStyle = COLORS.wallpaperPattern; 
+    ctx.lineWidth = 5; 
+    ctx.globalAlpha = 0.8;
+    
+    const drawDamask = (x, y) => {
+        ctx.save(); ctx.translate(x, y); ctx.beginPath();
+        ctx.moveTo(0, -90); ctx.bezierCurveTo(70, -90, 90, -30, 0, 75); ctx.bezierCurveTo(-90, -30, -70, -90, 0, -90);
+        ctx.stroke(); ctx.beginPath(); ctx.arc(0, -25, 20, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    };
+
+    for(let x=0; x<=1024; x+=256) {
+        for(let y=0; y<=1024; y+=256) {
+            drawDamask(x + 128, y + 128);
+        }
+    }
+    
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(4, 2);
+
+    const wallMat = new THREE.MeshPhysicalMaterial({ 
+        map: tex, 
+        bumpMap: tex, 
+        bumpScale: 0.08,
+        roughness: 0.3, 
+        metalness: 0.4, 
+        clearcoat: 0.5, 
+        envMap: cubeRenderTarget.texture, 
+        reflectivity: 0.7
+    });
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(120, 60), wallMat);
+    wall.position.z = -6;
+    wall.receiveShadow = true;
+    scene.add(wall);
+}
+
+function createTable() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    
+    // 1. Base Dark Mahogany Background
+    ctx.fillStyle = '#1c0b07'; 
+    ctx.fillRect(0,0,1024,1024);
+    
+    // 2. Wood Grain (Horizontal Streaks for texture)
+    for (let i = 0; i < 400; i++) {
+        const y = Math.random() * 1024;
+        const height = 1 + Math.random() * 10;
+        const val = Math.floor(20 + Math.random() * 30);
+        // Varying reddish-brown streaks
+        ctx.fillStyle = `rgba(${val+25}, ${val+5}, ${val}, 0.15)`;
+        ctx.fillRect(0, y, 1024, height);
+    }
+
+    // 3. Fine Fibers (Wavy organic lines)
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.08;
+    ctx.strokeStyle = '#0a0402'; // Dark grain lines
+    
+    for (let y = 0; y < 1024; y += 6) {
+        if (Math.random() > 0.6) continue; // Randomize spacing
+        ctx.beginPath();
+        let currentY = y;
+        ctx.moveTo(0, currentY);
+        for (let x = 0; x <= 1024; x += 30) {
+            currentY += (Math.random() - 0.5) * 4; // Gentle wave
+            ctx.lineTo(x, currentY);
+        }
+        ctx.stroke();
+    }
+
+    // 4. Subtle Mottling (Cloudy varnish unevenness)
+    for (let i = 0; i < 60; i++) {
+        const x = Math.random() * 1024;
+        const y = Math.random() * 1024;
+        const r = 80 + Math.random() * 150;
+        const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
+        grd.addColorStop(0, 'rgba(60, 30, 20, 0.06)');
+        grd.addColorStop(1, 'rgba(60, 30, 20, 0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+    }
+
+    // 5. Heavy Vignette (For that focused, cinematic desk look)
+    const vignette = ctx.createRadialGradient(512, 512, 300, 512, 512, 900);
+    vignette.addColorStop(0, 'rgba(10, 5, 2, 0)');
+    vignette.addColorStop(1, 'rgba(0, 0, 0, 0.85)');
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, 1024, 1024);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    
+    const tableMat = new THREE.MeshPhysicalMaterial({ 
+        map: tex, 
+        roughness: 0.25, 
+        clearcoat: 0.6, 
+        clearcoatRoughness: 0.15,
+        reflectivity: 0.3, 
+        envMap: cubeRenderTarget.texture,
+        color: 0xeeeeee 
+    });
+    const tableMesh = new THREE.Mesh(new THREE.BoxGeometry(40, 1.4, 12), tableMat);
+    tableMesh.position.y = -0.7;
+    tableMesh.receiveShadow = true;
+    scene.add(tableMesh);
+}
+
+function createSmartClock() {
+    clock = new THREE.Group();
+    
+    // Housing
+    const bodyMat = new THREE.MeshPhysicalMaterial({ 
+        color: 0x1a1a1a, metalness: 0.6, roughness: 0.3, clearcoat: 0.5, envMap: cubeRenderTarget.texture 
+    });
+    const housing = new THREE.Mesh(new THREE.BoxGeometry(4.8, 3.2, 1.5), bodyMat);
+    housing.position.y = 0.5;
+    housing.castShadow = true;
+    housing.receiveShadow = true;
+    clock.add(housing);
+
+    // --- SCREEN CANVAS ---
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 640; 
+    screenContext = canvas.getContext('2d');
+    
+    screenTexture = new THREE.CanvasTexture(canvas);
+    screenTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    
+    const screenMat = new THREE.MeshBasicMaterial({ 
+        map: screenTexture,
+    });
+
+    // Screen Mesh 
+    const screenGeo = new THREE.PlaneGeometry(4.4, 2.8);
+    screenMesh = new THREE.Mesh(screenGeo, screenMat);
+    screenMesh.position.set(0, 0.5, 0.76); 
+    clock.add(screenMesh);
+
+    // Glass Cover 
+    const glassGeo = new THREE.PlaneGeometry(4.4, 2.8);
+    const glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff, transmission: 0.95, opacity: 0, transparent: true,
+        roughness: 0.0, metalness: 0.1, clearcoat: 1.0, reflectivity: 1.0,
+        envMap: cubeRenderTarget.texture, envMapIntensity: 1.5
+    });
+    const glass = new THREE.Mesh(glassGeo, glassMat);
+    glass.position.set(0, 0.5, 0.8);
+    clock.add(glass);
+
+    clock.scale.set(0.85, 0.85, 0.85); 
+    clock.position.set(-2.8, 0.8, 4); 
+    clock.rotation.y = 0.2;
+    clock.rotation.x = -0.15; 
+    scene.add(clock);
+}
+
+function updateSmartScreen() {
+    if (!screenContext) return;
+    const ctx = screenContext;
+    const width = 1024;
+    const height = 640;
+
+    // Background
+    ctx.fillStyle = COLORS.screenBg;
+    ctx.fillRect(0, 0, width, height);
+    
+    // Subtle Scanlines
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+    for(let i=0; i<height; i+=4) ctx.fillRect(0, i, width, 1);
+
+    const totalSeconds = Math.ceil(timerMs / 1000);
+    const min = Math.floor(totalSeconds / 60);
+    const sec = totalSeconds % 60;
+    
+    // Animation Logic
+    if (sec !== prevSeconds) {
+        digitOffset = 1;
+        prevSeconds = sec;
+    }
+    digitOffset += (0 - digitOffset) * 0.15;
+
+    // --- TIME DISPLAY ---
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Minutes (Static) - Shifted Left
+    ctx.font = '700 240px "Inter", monospace';
+    ctx.fillStyle = COLORS.screenText;
+    ctx.fillText(min.toString().padStart(2, '0') + ":", width/2 - 200, height/2 - 40);
+
+    // Seconds (Animated Slide) - Shifted Right
+    const secStr = sec.toString().padStart(2, '0');
+    
+    const yBase = height/2 - 40;
+    const yOffset = digitOffset * 100; // Slide distance
+    const alphaMain = 1 - Math.abs(digitOffset);
+    
+    ctx.globalAlpha = alphaMain;
+    ctx.fillText(secStr, width/2 + 200, yBase + yOffset);
+    
+    ctx.globalAlpha = 1.0;
+
+    // --- UI BUTTONS (Bottom Bar) ---
+    const btnY = height - 100;
+    const btnW = 240;
+    
+    drawVirtualButton(ctx, width/2 - 300, btnY, btnW, isRunning ? "PAUSE" : "START", COLORS.screenDim);
+    drawVirtualButton(ctx, width/2, btnY, btnW, mode.toUpperCase(), COLORS.screenDim);
+    drawVirtualButton(ctx, width/2 + 300, btnY, btnW, "RESET", COLORS.screenDim);
+
+    // Header / Status
+    ctx.font = '500 30px "Inter", sans-serif';
+    ctx.fillStyle = COLORS.screenDim;
+    ctx.letterSpacing = "4px";
+    ctx.fillText(isRunning ? "FLOW STATE ACTIVE" : "READY", width/2, 80);
+    
+    // --- INFO BUTTON (Top Right) ---
+    const infoX = width - 70;
+    const infoY = 70;
+    const infoR = 30;
+    
+    ctx.beginPath();
+    ctx.arc(infoX, infoY, infoR, 0, Math.PI*2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = COLORS.screenDim;
+    ctx.stroke();
+    
+    ctx.font = '700 36px "Inter", serif';
+    ctx.fillStyle = COLORS.screenDim;
+    ctx.fillText("i", infoX, infoY + 2); // Optical center adjustment
+
+    ctx.letterSpacing = "0px";
+
+    screenTexture.needsUpdate = true;
+}
+
+function drawVirtualButton(ctx, x, y, w, text, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(x - w/2, y - 40, w, 80);
+    
+    ctx.fillStyle = color; 
+    ctx.font = '600 32px "Inter", sans-serif';
+    ctx.fillText(text, x, y);
+}
+
+function createHourglass() {
+    hourglass = new THREE.Group();
+
+    const glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff, 
+        transmission: 1.0, 
+        thickness: 1.5,    
+        ior: 1.45,         
+        roughness: 0.05, 
+        transparent: true, 
+        side: THREE.DoubleSide, 
+        clearcoat: 1.0,
+        envMap: cubeRenderTarget.texture, 
+        envMapIntensity: 2.0
+    });
+
+    const pts = [];
+    for (let i = 0; i <= 60; i++) {
+        pts.push(new THREE.Vector2(getBulbRadius(i / 60), (i / 60) * 4.8));
+    }
+    
+    const bG = new THREE.LatheGeometry(pts, 64);
+    const tB = new THREE.Mesh(bG, glassMat); tB.position.y = 0.1;
+    const bB = new THREE.Mesh(bG, glassMat); bB.rotation.x = Math.PI; bB.position.y = -0.1;
+    tB.castShadow = bB.castShadow = true;
+    hourglass.add(tB, bB);
+
+    const frameMat = new THREE.MeshPhysicalMaterial({ 
+        color: COLORS.brass, metalness: 1.0, roughness: 0.1, clearcoat: 1.0,
+        envMap: cubeRenderTarget.texture, reflectivity: 1.0
+    });
+    
+    const cap = new THREE.CylinderGeometry(2.8, 2.8, 0.15, 64);
+    const tC = new THREE.Mesh(cap, frameMat); tC.position.y = 5.0;
+    const bC = new THREE.Mesh(cap, frameMat); bC.position.y = -5.0;
+    tC.castShadow = bC.castShadow = true;
+    hourglass.add(tC, bC);
+
+    for(let i=0; i<3; i++){
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 10.2, 16), frameMat);
+        const ang = (i / 3) * Math.PI * 2;
+        rod.position.set(Math.cos(ang)*2.5, 0, Math.sin(ang)*2.5);
+        rod.castShadow = true;
+        hourglass.add(rod);
+    }
+
+    const dP = [new THREE.Vector2(0,0), new THREE.Vector2(0.1,0)];
+    topSand = new THREE.Mesh(new THREE.LatheGeometry(dP, 32), sandMaterial);
+    bottomSand = new THREE.Mesh(new THREE.LatheGeometry(dP, 32), sandMaterial);
+    topSand.position.y = 0.1; bottomSand.position.y = -0.1; bottomSand.rotation.x = Math.PI;
+    topSand.castShadow = bottomSand.castShadow = true;
+    hourglass.add(topSand, bottomSand);
+
+    streamMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.003, 3, 3), sandMaterial, 8000);
+    streamMesh.castShadow = true;
+    hourglass.add(streamMesh);
+
+    hourglass.scale.set(0.45, 0.45, 0.45);
+    hourglass.position.set(2.8, 2.25, 3.5); 
+    scene.add(hourglass);
+}
+
+function getBulbRadius(t) {
+    const tClamped = Math.max(0, Math.min(1, t)); // Fix: Clamp input to avoid NaN
+    const r = Math.sin(tClamped * Math.PI);
+    return (Math.pow(r, 0.8) * 1.8) + 0.18;
+}
+
+function createSandTextureMaterial() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 128; 
+    const ctx = canvas.getContext('2d');
+    
+    ctx.fillStyle = '#7D7365'; 
+    ctx.fillRect(0,0,128,128);
+    
+    const imgData = ctx.getImageData(0, 0, 128, 128);
+    const data = imgData.data;
+    for(let i = 0; i < data.length; i += 4) {
+        const noise = (Math.random() - 0.5) * 40; 
+        data[i] = Math.max(0, Math.min(255, data[i] + noise));
+        data[i+1] = Math.max(0, Math.min(255, data[i+1] + noise));
+        data[i+2] = Math.max(0, Math.min(255, data[i+2] + noise));
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    sandMaterial = new THREE.MeshStandardMaterial({ 
+        map: new THREE.CanvasTexture(canvas), 
+        roughness: 1.0,   
+        metalness: 0.0,   
+        color: 0xffffff,  
+        side: THREE.FrontSide
+    });
+}
+
+function createDustMotes() {
+    const geom = new THREE.BufferGeometry();
+    const pos = new Float32Array(300 * 3);
+    for(let i=0; i<300*3; i++) pos[i] = (Math.random()-0.5) * 25;
+    geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({ color: 0xffdca1, size: 0.015, transparent: true, opacity: 0.2 });
+    dust = new THREE.Points(geom, mat);
+    scene.add(dust);
+}
+
+function onMouseDown(e) {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
+    
+    if (screenMesh) {
+        const hits = raycaster.intersectObject(screenMesh);
+        if (hits.length > 0) {
+            const uv = hits[0].uv;
+            
+            // Bottom Buttons (y < 0.25)
+            if (uv.y < 0.25 && uv.y > 0.05) {
+                if (uv.x < 0.35) handleAction('start'); 
+                else if (uv.x > 0.65) handleAction('reset'); 
+                else handleAction('mode'); 
+            }
+            
+            // Top Right Info Button
+            // Canvas coords: x ~ 950, y ~ 50. 
+            // UV mapping: 0,0 is bottom-left usually in Three.js standard PlaneGeometry with simple map
+            // So y=0 is bottom, y=1 is top.
+            // Canvas y=0 (top) corresponds to UV y=1.
+            // Canvas x=1024 (right) corresponds to UV x=1.
+            // Info button is at top right.
+            // uv.y > 0.85 (approx top 15%)
+            // uv.x > 0.85 (approx right 15%)
+            if (uv.y > 0.85 && uv.x > 0.85) {
+                toggleInstructions();
+            }
+        }
+    }
+}
+
+function handleAction(a) {
+    if (isFlipping && a === 'mode') return;
+    lastTimestamp = 0;
+    if (a === 'start') isRunning = !isRunning;
+    else if (a === 'reset') { isRunning = false; timerMs = totalTimeMs; }
+    else if (a === 'mode') {
+        isRunning = false;
+        mode = mode === 'work' ? 'break' : 'work';
+        timerMs = (mode === 'work' ? 25 : 5) * 60 * 1000;
+        totalTimeMs = timerMs;
+        flipHourglass();
+    }
+}
+
+function flipHourglass() {
+    if (isFlipping) return;
+    isFlipping = true;
+    const sZ = hourglass.rotation.z;
+    const targetZ = sZ + Math.PI; 
+    
+    const duration = 1800; 
+    const start = performance.now();
+    
+    function step(now) {
+        let p = Math.min(1, (now - start) / duration);
+        
+        const c1 = 1.70158;
+        const c2 = c1 * 1.525;
+        let easeVal;
+
+        if (p < 0.5) {
+            easeVal = (Math.pow(2 * p, 2) * ((c2 + 1) * 2 * p - c2)) / 2;
+        } else {
+            easeVal = (Math.pow(2 * p - 2, 2) * ((c2 + 1) * (p * 2 - 2) + c2) + 2) / 2;
+        }
+        
+        hourglass.rotation.z = sZ + ((targetZ - sZ) * easeVal);
+        
+        if (p < 1) requestAnimationFrame(step);
+        else { 
+            hourglass.rotation.z = targetZ; 
+            isFlipping = false; 
+        }
+    }
+    requestAnimationFrame(step);
+}
+
+const pStates = Array.from({length: 6000}, () => ({ y: -100, speed: 0.13+Math.random()*0.06, dir: { x: (Math.random()-0.5), z: (Math.random()-0.5) } }));
+
+function updateSand(progress) {
+    if (isFlipping) {
+        streamMesh.visible = false;
+        return;
+    }
+    streamMesh.visible = true;
+
+    const bh = 4.8;
+    const pileMaxY = 4.8;
+    
+    const isFlipped = Math.abs(Math.round(hourglass.rotation.z / Math.PI)) % 2 !== 0;
+    const effectiveProgress = Math.pow(progress, 0.75);
+
+    const topHeight = bh * (1 - effectiveProgress);
+    const bottomHeight = Math.max(0.02, bh * effectiveProgress);
+
+    // Fix: Clamp y to avoid floating point issues exceeding bh
+    const glassRadiusAtY = (y) => getBulbRadius(Math.min(y, bh) / bh) * 0.93;
+
+    // ---------- TOP SAND ----------
+    const topProfile = [new THREE.Vector2(0, 0)];
+    for (let i = 0; i <= 32; i++) {
+        const h = (i / 32) * topHeight;
+        const r = glassRadiusAtY(h);
+        topProfile.push(new THREE.Vector2(r, h));
+    }
+    topProfile.push(new THREE.Vector2(0, topHeight));
+
+    // ---------- BOTTOM HEAP (REALISTIC PHYSICS) ----------
+    const heapProfile = [];
+    const heapHeight = bottomHeight;
+    const baseY = pileMaxY - heapHeight;
+    
+    // Dynamic Angle of Repose
+    // 1. Start flat: When progress is low, friction is low (simulated), sand spreads wide.
+    // 2. Build heap: As progress increases, angle steepens to max (34 deg).
+    const pileProgress = Math.min(1.0, effectiveProgress * 1.2); 
+    const angleReposeMax = 34;
+    const angleReposeMin = 10; // Flatter start for rolling effect
+    
+    // Ease out for natural accumulation
+    const angleEase = 1 - Math.pow(1 - pileProgress, 4); 
+    const currentAngleDeg = angleReposeMin + (angleReposeMax - angleReposeMin) * angleEase;
+    const currentTan = Math.tan(THREE.MathUtils.degToRad(currentAngleDeg));
+
+    for (let i = 0; i <= 60; i++) {
+        // We iterate h from 0 to heapHeight.
+        // h=0 corresponds to the TIP of the pile (physically highest point).
+        // h=heapHeight corresponds to the BASE of the pile (physically lowest point).
+        
+        const h = (i / 60) * heapHeight; 
+        
+        // y position in local coordinates.
+        // Tip is at (4.8 - heapHeight). Base is at 4.8.
+        const y = baseY + h; 
+
+        // Distance from the peak of the pile (h=0 is peak)
+        const distFromPeak = h; 
+
+        // 1. Natural Cone Logic: Radius grows as we go down from peak
+        // Standard: r = dist / tan(theta)
+        // 2. Softening: Use power function to round the tip
+        // Power < 1.0 makes the tip convex (rounded dome-like)
+        const softness = 0.75; 
+        
+        // We calculate radius based on height from peak
+        let naturalRadius = Math.pow(distFromPeak, softness) / currentTan;
+        
+        // Scale adjustment to match dimensions of linear cone at depth
+        // We blend towards linear behavior at the base for stability
+        const linearRadius = distFromPeak / currentTan;
+        const blend = Math.min(1.0, distFromPeak * 0.8);
+        naturalRadius = (naturalRadius * (1-blend)) + (linearRadius * blend);
+
+        // Constrain to glass walls
+        const wallRadius = glassRadiusAtY(y);
+        const r = Math.min(naturalRadius, wallRadius);
+        
+        heapProfile.push(new THREE.Vector2(r, y));
+    }
+
+    // Close the bottom specifically to ensure it hits the floor cleanly
+    heapProfile.push(new THREE.Vector2(0, pileMaxY));
+
+    // ---------- APPLY ----------
+    if (!isFlipped) {
+        topSand.geometry.dispose();
+        bottomSand.geometry.dispose();
+        topSand.geometry = new THREE.LatheGeometry(topProfile, 60);
+        bottomSand.geometry = new THREE.LatheGeometry(heapProfile, 60);
+    } else {
+        bottomSand.geometry.dispose();
+        topSand.geometry.dispose();
+        bottomSand.geometry = new THREE.LatheGeometry(topProfile, 60);
+        topSand.geometry = new THREE.LatheGeometry(heapProfile, 60);
+    }
+
+    topSand.geometry.computeVertexNormals();
+    bottomSand.geometry.computeVertexNormals();
+
+    topSand.visible = topHeight > 0.01;
+    bottomSand.visible = bottomHeight > 0.01;
+
+    // ---------- STREAM ----------
+    const startY = isFlipped ? -0.1 : 0.1;
+    const grav = isFlipped ? 1 : -1;
+    const targetY = isFlipped
+        ? pileMaxY - bottomHeight + 0.15
+        : -(pileMaxY - bottomHeight) - 0.15;
+
+    for (let i = 0; i < 6000; i++) {
+        const p = pStates[i];
+
+        if (!isRunning || progress >= 1) {
+            p.y = -100;
+        } else {
+            if (p.y === -100) {
+                p.y = startY + Math.random() * (targetY - startY);
+            }
+            p.y += grav * p.speed;
+
+            if ((grav === -1 && p.y < targetY) || (grav === 1 && p.y > targetY)) {
+                p.y = startY;
+            }
+        }
+
+        const spread = 0.02 + Math.abs(p.y - startY) * 0.08;
+        const m = new THREE.Matrix4();
+        m.setPosition(
+            p.dir.x * spread,
+            p.y,
+            p.dir.z * spread
+        );
+        streamMesh.setMatrixAt(i, m);
+    }
+    streamMesh.instanceMatrix.needsUpdate = true;
+}
+
+function animate(t) {
+    if (!lastTimestamp) lastTimestamp = t;
+    const dt = t - lastTimestamp;
+    lastTimestamp = t;
+
+    if (isRunning && timerMs > 0) {
+        timerMs -= dt;
+        if (timerMs <= 0) {
+            timerMs = 0; isRunning = false;
+            sessionCount++; mode = mode === 'work' ? 'break' : 'work';
+            timerMs = (mode === 'work' ? 25 : 5) * 60 * 1000;
+            totalTimeMs = timerMs;
+            flipHourglass();
+        }
+    }
+
+    const time = t * 0.0002;
+    camera.position.x = Math.sin(time) * 0.3;
+    camera.position.y = 5 + Math.cos(time * 0.5) * 0.1;
+    camera.lookAt(0, 1.8, 0);
+
+    hourglass.visible = false; clock.visible = false;
+    cubeCamera.update(renderer, scene);
+    hourglass.visible = true; clock.visible = true;
+
+    updateSand(Math.min(1.0, 1 - (timerMs / totalTimeMs)));
+    updateSmartScreen(); 
+    composer.render();
+    requestAnimationFrame(animate);
+}
+
+function onWindowResize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const pixelRatio = renderer.getPixelRatio();
+    
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    
+    renderer.setSize(width, height);
+    composer.setSize(width, height);
+    composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    
+    if(fxaaPass) {
+        fxaaPass.material.uniforms['resolution'].value.x = 1 / (width * pixelRatio);
+        fxaaPass.material.uniforms['resolution'].value.y = 1 / (height * pixelRatio);
+    }
+}
+
+window.onload = init;
+</script>
+
+</body>
+</html>

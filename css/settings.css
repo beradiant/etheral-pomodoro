@@ -1,0 +1,247 @@
+.settings-tabs {
+    display: flex;
+    border-bottom: 1px solid #333;
+    padding: 0 1rem;
+}
+
+.settings-tab {
+    background: none;
+    border: none;
+    color: #666;
+    padding: 1rem 1.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.settings-tab:hover {
+    color: #aaa;
+}
+
+.settings-tab.active {
+    color: #d4af37;
+    border-bottom-color: #d4af37;
+}
+
+.settings-body {
+    padding: 2rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.settings-section {
+    display: none;
+}
+
+.settings-section.active {
+    display: block;
+}
+
+.settings-section h3 {
+    font-size: 0.9rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 0 0 1rem 0;
+    font-weight: 400;
+}
+
+/* Theme Cards */
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.theme-card {
+    background: #252525;
+    border: 2px solid #333;
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.theme-card:hover {
+    border-color: #555;
+    transform: translateY(-2px);
+}
+
+.theme-card.selected {
+    border-color: #d4af37;
+    background: #2a2520;
+}
+
+.theme-preview {
+    height: 80px;
+    border-radius: 4px;
+    margin-bottom: 0.8rem;
+    background: linear-gradient(135deg, #333, #222);
+}
+
+.theme-name {
+    font-size: 0.9rem;
+    color: #ddd;
+    margin: 0;
+}
+
+/* Timer Controls */
+.timer-control {
+    margin-bottom: 1.5rem;
+}
+
+.timer-control label {
+    display: block;
+    font-size: 0.85rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.timer-options {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.timer-option {
+    background: #252525;
+    border: 1px solid #444;
+    color: #ccc;
+    padding: 0.6rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.timer-option:hover {
+    border-color: #666;
+    background: #2a2a2a;
+}
+
+.timer-option.selected {
+    border-color: #d4af37;
+    background: #2a2520;
+    color: #d4af37;
+}
+
+/* Preset Buttons */
+.preset-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.8rem;
+    margin-bottom: 2rem;
+}
+
+.preset-btn {
+    background: #252525;
+    border: 1px solid #444;
+    color: #ccc;
+    padding: 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+}
+
+.preset-btn:hover {
+    border-color: #666;
+}
+
+.preset-btn.selected {
+    border-color: #d4af37;
+    background: #2a2520;
+}
+
+.preset-name {
+    font-size: 0.95rem;
+    color: #ddd;
+    margin: 0 0 0.3rem 0;
+}
+
+.preset-desc {
+    font-size: 0.75rem;
+    color: #777;
+    margin: 0;
+}
+
+/* View Toggle */
+.view-options {
+    display: flex;
+    gap: 1rem;
+}
+
+.view-option {
+    flex: 1;
+    background: #252525;
+    border: 1px solid #444;
+    color: #ccc;
+    padding: 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.view-option:hover {
+    border-color: #666;
+}
+
+.view-option.selected {
+    border-color: #d4af37;
+    background: #2a2520;
+    color: #d4af37;
+}
+
+.sound-toggle {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #333;
+}
+
+.sound-toggle label {
+    color: #888;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 50px;
+    height: 26px;
+    background: #333;
+    border-radius: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.toggle-switch.active {
+    background: #d4af37;
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    transition: left 0.2s;
+}
+
+.toggle-switch.active::after {
+    left: 27px;
+}
